@@ -1,0 +1,71 @@
+version: '3'
+services:
+  schemaspy:
+    image: schemaspy/schemaspy
+    volumes:
+      - ${DIR_PATH}/schemaspy/output:/output
+      - ${DIR_PATH}/Docker/schemaspy/drivers:${DB_DRIVERS_DIR}
+    command: >
+      java -jar schemaspy.jar
+      -t ${DB_TYPE}
+      -dp ${DB_DRIVERS_DIR}
+      -host ${DB_HOST}
+      -port ${DB_INTERNAL_PORT}
+      -db ${DB_DATABASE}
+      -u ${DB_USER}
+      -p ${DB_PASSWORD}
+      -s ${DB_SCHEMA}
+      -connprops allowPublicKeyRetrieval\\=false useSSL\\=false
+
+  nginx:
+    image: nginx:1.13.9-alpine
+    container_name: schemaspy_nginx
+    volumes:
+      - ${DIR_PATH}/schemaspy/output:/var/www/html:ro
+      - ${DIR_PATH}/Docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "8081:80"
+    environment:
+      - LANG=ja_JP.UTF-8
+      - TZ=Asia/Tokyo
+    command: "nginx -g 'daemon off;'"
+
+  phpmig:
+    build: ./Docker/phpmig
+    volumes:
+      - ${DIR_PATH}/src/:/app/src
+      - ${DIR_PATH}/Docker/phpmig/php.ini:/usr/local/etc/php/php.ini
+      - ${DIR_PATH}/Docker/phpmig/xdebug.ini:/usr/local/etc/php/conf.d/xdebug.ini
+    environment:
+      MYSQL_HOST: ${DB_HOST}
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_INTERNAL_PORT: ${DB_INTERNAL_PORT}
+      XDEBUG_PORT: ${XDEBUG_PORT}
+      XDEBUG_KEY: ${XDEBUG_KEY}
+    tty: true
+
+  mysql:
+    image: mysql:5.7
+    container_name: ${COMPOSE_PROJECT_NAME}_mysql5_7
+    user: "1000:50"
+    volumes:
+      - ${DIR_PATH}/Docker/mysql/my.cnf:/etc/my.cnf
+      - ${DIR_PATH}/Docker/mysql/data:/var/lib/mysql
+      - ${DIR_PATH}/Docker/mysql/backup:/tmp/mysql
+      - ${DIR_PATH}/Docker/mysql/init:/docker-entrypoint-initdb.d
+      - ${DIR_PATH}/Docker/mysql/logs:/var/log/mysql
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    ports:
+      - ${DB_EXTERNAL_PORT}:${DB_INTERNAL_PORT}
+    command: mysqld --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --innodb_use_native_aio=0
+networks:
+  default:
+    external:
+      name: ${NETWORK_NAME}

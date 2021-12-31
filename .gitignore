@@ -1,0 +1,5 @@
+schemaspy/output/
+.env
+Docker/mysql/data/
+Docker/mysql/logs/
+Docker/mysql/backup/
